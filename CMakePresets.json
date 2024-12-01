@@ -5,7 +5,11 @@
 			"name": "samples",
 			"description": "Enable samples but only those without extra dependencies.",
 			"cacheVariables": {
-				"RMLUI_SAMPLES": true
+				"RMLUI_SAMPLES": true,
+				"CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vendor/vcpkg/scripts/buildsystems/vcpkg.cmake",
+				"VCPKG_TARGET_TRIPLET": "x64-windows-static",
+				"RMLUI_BACKEND": "Win32_VK",
+				"BUILD_SHARED_LIBS": false
 			}
 		},
 		{

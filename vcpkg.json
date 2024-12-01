@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "rmlui",
+  "version": "1.0.0",
+  "dependencies": [
+    "lunasvg",
+    "freetype",
+    "harfbuzz",
+    "rlottie",
+    "tracy",
+    "lua",
+    "rapidjson",
+    "directx-headers"
+  ],
+  "vcpkg-configuration": {
+    "overlay-triplets": [
+      "./vendor/triplets"
+    ]
+  }
+}

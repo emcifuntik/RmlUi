@@ -8,6 +8,16 @@ project("RmlUi"
 	LANGUAGES "C" "CXX"
 )
 
+include_directories(
+	"${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/../include"
+)
+
+link_directories(
+	"${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib"
+)
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 set(RMLUI_VERSION_RELEASE FALSE)
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)

@@ -1499,7 +1499,7 @@ void RenderInterface_DX12::PopLayer()
 	//	RMLUI_ASSERT(false && "todo");
 }
 
-Rml::TextureHandle RenderInterface_DX12::SaveLayerAsTexture(Rml::Vector2i dimensions)
+Rml::TextureHandle RenderInterface_DX12::SaveLayerAsTexture()
 {
 	//	RMLUI_ASSERT(false && "todo");
 	return Rml::TextureHandle();
