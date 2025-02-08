@@ -225,7 +225,7 @@ static void IMECompleteComposition(HWND window_handle)
 {
 	if (HIMC context = ImmGetContext(window_handle))
 	{
-		ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, NULL);
+		ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
 		ImmReleaseContext(window_handle, context);
 	}
 }
