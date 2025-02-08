@@ -10,7 +10,8 @@
     "tracy",
     "lua",
     "rapidjson",
-    "directx-headers"
+    "directx-headers",
+    "d3d12memoryallocator"
   ],
   "vcpkg-configuration": {
     "overlay-triplets": [

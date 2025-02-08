@@ -2380,7 +2380,7 @@ void RenderInterface_DX12::Destroy_CommandAllocators(void) noexcept
 {
 	for (ID3D12CommandAllocator* p_allocator : this->m_backbuffers_allocators)
 	{
-		RMLUI_ASSERT(p_allocator, "early calling or object is damaged!");
+		RMLUI_ASSERTMSG(p_allocator, "early calling or object is damaged!");
 		if (p_allocator)
 		{
 			p_allocator->Release();
@@ -4407,7 +4407,7 @@ D3D12MA::VirtualBlock* RenderInterface_DX12::BufferMemoryManager::Get_AvailableB
 D3D12MA::VirtualBlock* RenderInterface_DX12::BufferMemoryManager::Get_NotOutOfMemoryAndAvailableBlock(size_t size_for_allocation, int* result_index)
 {
 	RMLUI_ASSERT(result_index && "must be valid part of memory!");
-	RMLUI_ASSERT(*result_index != -1,
+	RMLUI_ASSERTMSG(*result_index != -1,
 		"use this method when you found of available block then tried to allocate from it but got out of memory status!");
 
 	D3D12MA::VirtualBlock* p_result{};
@@ -4670,10 +4670,10 @@ void RenderInterface_DX12::BufferMemoryManager::TryToFreeAvailableBlock()
 			if (stats.AllocationCount == 0 && stats.BlockCount == 0)
 			{
 				auto ref_count = p_block->Release();
-				RMLUI_ASSERT(ref_count == 0, "leak");
+				RMLUI_ASSERTMSG(ref_count == 0, "leak");
 
 				ref_count = this->m_buffers.at(index).first->Release();
-				RMLUI_ASSERT(ref_count == 0, "leak");
+				RMLUI_ASSERTMSG(ref_count == 0, "leak");
 
 				this->m_buffers.at(index).second = nullptr;
 
@@ -4717,7 +4717,7 @@ void RenderInterface_DX12::TextureMemoryManager::Initialize(D3D12MA::Allocator* 
 {
 	RMLUI_ASSERT(p_allocator && "you must pass a valid allocator pointer");
 	RMLUI_ASSERT(size_for_placed_heap > 0 && "there's no point in creating in such small heap");
-	RMLUI_ASSERT(size_for_placed_heap != size_t(-1), "invalid value!");
+	RMLUI_ASSERTMSG(size_for_placed_heap != size_t(-1), "invalid value!");
 	RMLUI_ASSERT(p_device && "must be valid!");
 	RMLUI_ASSERT(p_command_list && "must be valid!");
 	RMLUI_ASSERT(p_allocator_command && "must be valid!");
@@ -4758,7 +4758,7 @@ void RenderInterface_DX12::TextureMemoryManager::Initialize(D3D12MA::Allocator* 
 	RMLUI_ASSERT(this->m_size_srv_cbv_uav_descriptor > 0 && "must be positive");
 	RMLUI_ASSERT(this->m_size_rtv_descriptor > 0 && "must be positive");
 
-	RMLUI_ASSERT(this->m_size_limit_for_being_placed > 0 && this->m_size_limit_for_being_placed != size_t(-1), "something is wrong!");
+	RMLUI_ASSERTMSG(this->m_size_limit_for_being_placed > 0 && this->m_size_limit_for_being_placed != size_t(-1), "something is wrong!");
 
 	if (this->m_p_device)
 	{
@@ -5037,9 +5037,9 @@ void RenderInterface_DX12::TextureMemoryManager::Free_Texture(TextureHandleType*
 
 bool RenderInterface_DX12::TextureMemoryManager::CanAllocate(size_t total_memory_for_allocation, D3D12MA::VirtualBlock* p_block)
 {
-	RMLUI_ASSERT(total_memory_for_allocation > 0 && total_memory_for_allocation != size_t(-1), "must be a valid number!");
+	RMLUI_ASSERTMSG(total_memory_for_allocation > 0 && total_memory_for_allocation != size_t(-1), "must be a valid number!");
 
-	RMLUI_ASSERT(p_block, "must be valid virtual block");
+	RMLUI_ASSERTMSG(p_block, "must be valid virtual block");
 
 	bool result{};
 
@@ -5056,7 +5056,7 @@ bool RenderInterface_DX12::TextureMemoryManager::CanAllocate(size_t total_memory
 
 bool RenderInterface_DX12::TextureMemoryManager::CanBePlacedResource(size_t total_memory_for_allocation)
 {
-	RMLUI_ASSERT(total_memory_for_allocation > 0 && total_memory_for_allocation != size_t(-1), "must be a valid number!");
+	RMLUI_ASSERTMSG(total_memory_for_allocation > 0 && total_memory_for_allocation != size_t(-1), "must be a valid number!");
 
 	bool result{};
 
@@ -5068,8 +5068,8 @@ bool RenderInterface_DX12::TextureMemoryManager::CanBePlacedResource(size_t tota
 
 bool RenderInterface_DX12::TextureMemoryManager::CanBeSmallResource(size_t base_memory)
 {
-	RMLUI_ASSERT(base_memory > 0, "must be greater than zero!");
-	RMLUI_ASSERT(base_memory != size_t(-1), "must be a valid number!");
+	RMLUI_ASSERTMSG(base_memory > 0, "must be greater than zero!");
+	RMLUI_ASSERTMSG(base_memory != size_t(-1), "must be a valid number!");
 
 	bool result{};
 
@@ -5084,16 +5084,17 @@ bool RenderInterface_DX12::TextureMemoryManager::CanBeSmallResource(size_t base_
 
 D3D12MA::VirtualBlock* RenderInterface_DX12::TextureMemoryManager::Get_AvailableBlock(size_t total_memory_for_allocation, int* result_index)
 {
-	RMLUI_ASSERT(this->m_p_device, "must be valid!");
-	RMLUI_ASSERT(result_index, "must be valid!");
-	RMLUI_ASSERT(total_memory_for_allocation <= this->m_size_limit_for_being_placed, "you can't pass a such size here!");
-	RMLUI_ASSERT(this->m_size_limit_for_being_placed < this->m_size_for_placed_heap, "something is wrong and you initialized your manager wrong!!!!");
+	RMLUI_ASSERTMSG(this->m_p_device, "must be valid!");
+	RMLUI_ASSERTMSG(result_index, "must be valid!");
+	RMLUI_ASSERTMSG(total_memory_for_allocation <= this->m_size_limit_for_being_placed, "you can't pass a such size here!");
+	RMLUI_ASSERTMSG(this->m_size_limit_for_being_placed < this->m_size_for_placed_heap,
+		"something is wrong and you initialized your manager wrong!!!!");
 
 	D3D12MA::VirtualBlock* p_result{};
 
 	if (this->m_blocks.empty())
 	{
-		RMLUI_ASSERT(this->m_heaps_placed.empty(), "if blocks are empty heaps must be too!");
+		RMLUI_ASSERTMSG(this->m_heaps_placed.empty(), "if blocks are empty heaps must be too!");
 
 		auto pair = this->Create_HeapPlaced(this->m_size_for_placed_heap);
 
@@ -5183,15 +5184,15 @@ void RenderInterface_DX12::TextureMemoryManager::Alloc_As_Committed(size_t base_
 void RenderInterface_DX12::TextureMemoryManager::Alloc_As_Committed(size_t base_memory, size_t total_memory, D3D12_RESOURCE_DESC& desc,
 	D3D12_RESOURCE_STATES initial_state, TextureHandleType* p_texture, Gfx::FramebufferData* p_impl)
 {
-	RMLUI_ASSERT(base_memory > 0, "must be greater than zero!");
-	RMLUI_ASSERT(total_memory > 0, "must be greater than zero!");
-	RMLUI_ASSERT(base_memory != size_t(-1), "must be valid number!");
-	RMLUI_ASSERT(total_memory != size_t(-1), "must be valid number!");
-	RMLUI_ASSERT(this->m_p_device, "must be valid!");
-	RMLUI_ASSERT(p_impl, "must be valid!");
-	RMLUI_ASSERT(this->m_p_command_allocator, "must be valid!");
-	RMLUI_ASSERT(this->m_p_command_list, "must be valid!");
-	RMLUI_ASSERT(this->m_p_allocator, "allocator must be valid!");
+	RMLUI_ASSERTMSG(base_memory > 0, "must be greater than zero!");
+	RMLUI_ASSERTMSG(total_memory > 0, "must be greater than zero!");
+	RMLUI_ASSERTMSG(base_memory != size_t(-1), "must be valid number!");
+	RMLUI_ASSERTMSG(total_memory != size_t(-1), "must be valid number!");
+	RMLUI_ASSERTMSG(this->m_p_device, "must be valid!");
+	RMLUI_ASSERTMSG(p_impl, "must be valid!");
+	RMLUI_ASSERTMSG(this->m_p_command_allocator, "must be valid!");
+	RMLUI_ASSERTMSG(this->m_p_command_list, "must be valid!");
+	RMLUI_ASSERTMSG(this->m_p_allocator, "allocator must be valid!");
 	RMLUI_ASSERT(p_texture && "must be valid!");
 
 	if (this->m_p_allocator)
@@ -5253,14 +5254,14 @@ void RenderInterface_DX12::TextureMemoryManager::Alloc_As_Committed(size_t base_
 void RenderInterface_DX12::TextureMemoryManager::Alloc_As_Placed(size_t base_memory, size_t total_memory, D3D12_RESOURCE_DESC& desc,
 	TextureHandleType* p_impl, const Rml::byte* p_data)
 {
-	RMLUI_ASSERT(base_memory > 0, "must be greater than zero!");
-	RMLUI_ASSERT(total_memory > 0, "must be greater than zero!");
-	RMLUI_ASSERT(base_memory != size_t(-1), "must be valid number!");
-	RMLUI_ASSERT(total_memory != size_t(-1), "must be valid number!");
-	RMLUI_ASSERT(this->m_p_device, "must be valid!");
-	RMLUI_ASSERT(p_impl, "must be valid!");
-	RMLUI_ASSERT(this->m_p_command_allocator, "must be valid!");
-	RMLUI_ASSERT(this->m_p_command_list, "must be valid!");
+	RMLUI_ASSERTMSG(base_memory > 0, "must be greater than zero!");
+	RMLUI_ASSERTMSG(total_memory > 0, "must be greater than zero!");
+	RMLUI_ASSERTMSG(base_memory != size_t(-1), "must be valid number!");
+	RMLUI_ASSERTMSG(total_memory != size_t(-1), "must be valid number!");
+	RMLUI_ASSERTMSG(this->m_p_device, "must be valid!");
+	RMLUI_ASSERTMSG(p_impl, "must be valid!");
+	RMLUI_ASSERTMSG(this->m_p_command_allocator, "must be valid!");
+	RMLUI_ASSERTMSG(this->m_p_command_list, "must be valid!");
 
 	D3D12_RESOURCE_ALLOCATION_INFO info_for_alloc{};
 
@@ -5270,7 +5271,7 @@ void RenderInterface_DX12::TextureMemoryManager::Alloc_As_Placed(size_t base_mem
 		info_for_alloc = this->m_p_device->GetResourceAllocationInfo(0, 1, &desc);
 
 		RMLUI_ASSERT(info_for_alloc.Alignment == D3D12_SMALL_RESOURCE_PLACEMENT_ALIGNMENT && "wrong calculation! check CanBeSmallResource method!");
-		RMLUI_ASSERT(total_memory == info_for_alloc.SizeInBytes, "must be equal! check calculate how you calculate total_memory variable!");
+		RMLUI_ASSERTMSG(total_memory == info_for_alloc.SizeInBytes, "must be equal! check calculate how you calculate total_memory variable!");
 	}
 	else
 	{
@@ -5278,7 +5279,7 @@ void RenderInterface_DX12::TextureMemoryManager::Alloc_As_Placed(size_t base_mem
 		info_for_alloc = this->m_p_device->GetResourceAllocationInfo(0, 1, &desc);
 
 		RMLUI_ASSERT(info_for_alloc.Alignment != D3D12_SMALL_RESOURCE_PLACEMENT_ALIGNMENT && "wrong calculation! check CanBeSmallResource method!");
-		RMLUI_ASSERT(total_memory == info_for_alloc.SizeInBytes, "must be equal! check calculation how you calculate total_memory variable!");
+		RMLUI_ASSERTMSG(total_memory == info_for_alloc.SizeInBytes, "must be equal! check calculation how you calculate total_memory variable!");
 	}
 
 	int heap_index{-1};
@@ -5436,7 +5437,7 @@ void RenderInterface_DX12::TextureMemoryManager::Upload(bool is_committed, Textu
 		}
 
 		auto ref_count = p_allocation->Release();
-		RMLUI_ASSERT(ref_count == 0, "leak!");
+		RMLUI_ASSERTMSG(ref_count == 0, "leak!");
 	}
 }
 
@@ -5582,7 +5583,7 @@ size_t RenderInterface_DX12::TextureMemoryManager::BitsPerPixel(DXGI_FORMAT form
 
 Rml::Pair<ID3D12Heap*, D3D12MA::VirtualBlock*> RenderInterface_DX12::TextureMemoryManager::Create_HeapPlaced(size_t size_for_creation)
 {
-	RMLUI_ASSERT(this->m_p_device, "must be valid!");
+	RMLUI_ASSERTMSG(this->m_p_device, "must be valid!");
 
 	D3D12MA::VIRTUAL_BLOCK_DESC desc_block{};
 

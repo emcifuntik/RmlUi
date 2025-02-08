@@ -80,7 +80,7 @@ RMLUI_DISABLE_ALL_COMPILER_WARNINGS_POP
 	#include <d3dcompiler.h>
 	#include <dxgi1_6.h>
 	#include <chrono>
-	#include "RmlUi_DirectX/D3D12MemAlloc.h"
+	#include "D3D12MemAlloc.h"
 	#include "RmlUi_DirectX/offsetAllocator.hpp"
 	#include <bitset>
 

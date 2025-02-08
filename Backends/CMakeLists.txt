@@ -39,14 +39,13 @@ target_sources(rmlui_backend_Win32_DX12 INTERFACE
 	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_Platform_Win32.cpp"
 	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_Renderer_DX12.cpp"
 	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_Backend_Win32_DX12.cpp"
-	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_DirectX/D3D12MemAlloc.cpp"
 	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_DirectX/offsetAllocator.cpp"
 	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_Platform_Win32.h"
 	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_Renderer_DX12.h"
-	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_DirectX/D3D12MemAlloc.h"
 	"${CMAKE_CURRENT_LIST_DIR}/RmlUi_DirectX/offsetAllocator.hpp"
 )
-target_link_libraries(rmlui_backend_Win32_DX12 INTERFACE rmlui_backend_common_headers)
+find_package(D3D12MemoryAllocator CONFIG REQUIRED)
+target_link_libraries(rmlui_backend_Win32_DX12 INTERFACE rmlui_backend_common_headers GPUOpen::D3D12MemoryAllocator)
 
 add_library(rmlui_backend_Win32_DX11 INTERFACE)
 target_sources(rmlui_backend_Win32_DX11 INTERFACE
