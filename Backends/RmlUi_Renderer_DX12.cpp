@@ -4,7 +4,7 @@
  * For the latest information, see http://github.com/mikke89/RmlUi
  *
  * Copyright (c) 2008-2010 CodePoint Ltd, Shift Technology Ltd
- * Copyright (c) 2019-2023 The RmlUi Team, and contributors
+ * Copyright (c) 2019-2025 The RmlUi Team, and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -133,24 +133,26 @@ float4 main(const sInputData inputArgs) : SV_TARGET
 constexpr const char pShaderSourceText_Vertex_PassThrough[] = R"(
 struct sInputData 
 {
-	float2 inPosition : POSITION;
-	float4 inColor : COLOR;
-	float2 inTexCoord : TEXCOORD;
+	float2 position : POSITION;
+	float4 color : COLOR;
+	float2 uv : TEXCOORD;
 };
 
 struct sOutputData
 {
-	float4 outPosition : SV_Position;
-	float4 outColor : COLOR;
-	float2 outUV : TEXCOORD;
+	float4 position : SV_Position;
+	float4 color : COLOR;
+	float2 uv : TEXCOORD;
 };
 
 sOutputData main(const sInputData inArgs)
 {
 	sOutputData result;
-	result.outPosition = float4(inArgs.inPosition.x, inArgs.inPosition.y, 0.0f, 0.0f);
-	result.outColor = inArgs.inColor;
-	result.outUV = inArgs.inTexCoord;
+	result.position = float4(inArgs.position.x, inArgs.position.y, 0.0f, 1.0f);
+	result.color = inArgs.color;
+	// need to flip here since Rml::MeshUtilities::GenerateQuad makes valid data for GL APIs but on DirectX 
+	// it is not valid UV (otherwise image will be flipped)
+	result.uv = float2(inArgs.uv.x, 1.0f - inArgs.uv.y); 
 
 	return result;
 }
@@ -159,9 +161,9 @@ sOutputData main(const sInputData inArgs)
 constexpr const char pShaderSourceText_Pixel_Passthrough[] = R"(
 struct sInputData
 {
-	float4 inputPos : SV_Position;
-	float4 inputColor : COLOR;
-	float2 inputUV : TEXCOORD;
+	float4 pos : SV_Position;
+	float4 color : COLOR;
+	float2 uv : TEXCOORD;
 };
 
 Texture2D g_InputTexture : register(t0);
@@ -171,7 +173,7 @@ SamplerState g_SamplerLinear : register(s0);
 
 float4 main(const sInputData inputArgs) : SV_TARGET 
 { 
-	return g_InputTexture.Sample(g_SamplerLinear, inputArgs.inputUV); 
+	return g_InputTexture.Sample(g_SamplerLinear, inputArgs.uv); 
 }
 )";
 
@@ -621,14 +623,16 @@ void RenderInterface_DX12::EndFrame()
 
 		CD3DX12_RESOURCE_BARRIER offscreen_texture_barrier_for_shader = CD3DX12_RESOURCE_BARRIER::Transition(p_postprocess_texture,
 			D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		CD3DX12_RESOURCE_BARRIER restore_state_of_postprocess_texture_return_to_rt = CD3DX12_RESOURCE_BARRIER::Transition(p_postprocess_texture, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		CD3DX12_RESOURCE_BARRIER restore_state_of_postprocess_texture_return_to_rt = CD3DX12_RESOURCE_BARRIER::Transition(p_postprocess_texture,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 		this->m_p_command_graphics_list->ResourceBarrier(1, &offscreen_texture_barrier_for_shader);
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE handle_rtv(this->m_p_descriptor_heap_render_target_view->GetCPUDescriptorHandleForHeapStart(),
 			this->m_current_back_buffer_index, this->m_size_descriptor_heap_render_target_view);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE handle_dsv(this->m_p_descriptor_heap_depthstencil->GetCPUDescriptorHandleForHeapStart());
 
-		this->m_p_command_graphics_list->OMSetRenderTargets(1, &handle_rtv, FALSE, nullptr);
+		this->m_p_command_graphics_list->OMSetRenderTargets(1, &handle_rtv, FALSE, &handle_dsv);
 
 		this->UseProgram(ProgramId::Passthrough);
 		D3D12_GPU_DESCRIPTOR_HANDLE srv_handle;
@@ -687,7 +691,7 @@ void RenderInterface_DX12::Clear()
 
 	this->m_p_command_graphics_list->ResourceBarrier(1, &barrier);
 
-	FLOAT clear_color[] = {0.0f, 0.0f, 0.0f, 1.0f};
+	constexpr FLOAT clear_color[] = {RMLUUI_RENDER_BACKEND_FIELD_CLEAR_VALUE_RENDERTARGET_COLOR_VAlUE};
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(this->m_p_descriptor_heap_render_target_view->GetCPUDescriptorHandleForHeapStart(),
 		this->m_current_back_buffer_index, this->m_size_descriptor_heap_render_target_view);
 
@@ -695,6 +699,12 @@ void RenderInterface_DX12::Clear()
 		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	this->m_p_command_graphics_list->ClearRenderTargetView(rtv, clear_color, 0, nullptr);
+
+	auto& p_current_rtv = this->m_manager_render_layer.GetTopLayer().Get_DescriptorResourceView();
+	auto& p_current_dsv = this->m_manager_render_layer.GetTopLayer().Get_SharedDepthStencilTexture()->Get_DescriptorResourceView();
+
+	this->m_p_command_graphics_list->ClearRenderTargetView(p_current_rtv, clear_color, 0, nullptr);
+	this->m_p_command_graphics_list->ClearDepthStencilView(p_current_dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 }
 
 void RenderInterface_DX12::RenderGeometry(Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation, Rml::TextureHandle texture)
@@ -805,6 +815,7 @@ void RenderInterface_DX12::RenderGeometry(Rml::CompiledGeometryHandle geometry, 
 		scissor.bottom = this->m_height;
 
 		this->m_p_command_graphics_list->RSSetScissorRects(1, &scissor);
+		OutputDebugStringA("GraphicsQueue::RSSetScissorRects | !this->m_is_scissor_was_set\n");
 	}
 
 	if (p_constant_buffer)
@@ -824,55 +835,55 @@ void RenderInterface_DX12::RenderGeometry(Rml::CompiledGeometryHandle geometry, 
 					p_dx_resource->GetGPUVirtualAddress() + p_constant_buffer->Get_AllocInfo().Get_Offset());
 			}
 		}
-
-		auto* p_dx_buffer_vertex = this->m_manager_buffer.Get_BufferByIndex(p_handle_geometry->Get_InfoVertex().Get_BufferIndex());
-
-		RMLUI_ASSERT(p_dx_buffer_vertex && "must be valid!");
-
-		this->m_p_command_graphics_list->IASetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY::D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-		if (p_dx_buffer_vertex)
-		{
-			auto* p_dx_resource = p_dx_buffer_vertex->GetResource();
-
-			RMLUI_ASSERT(p_dx_resource && "must be valid!");
-
-			if (p_dx_resource)
-			{
-				D3D12_VERTEX_BUFFER_VIEW view_vertex_buffer = {};
-
-				view_vertex_buffer.BufferLocation = p_dx_resource->GetGPUVirtualAddress() + p_handle_geometry->Get_InfoVertex().Get_Offset();
-				view_vertex_buffer.StrideInBytes = sizeof(Rml::Vertex);
-				view_vertex_buffer.SizeInBytes = static_cast<UINT>(p_handle_geometry->Get_InfoVertex().Get_Size());
-
-				this->m_p_command_graphics_list->IASetVertexBuffers(0, 1, &view_vertex_buffer);
-			}
-		}
-
-		auto* p_dx_buffer_index = this->m_manager_buffer.Get_BufferByIndex(p_handle_geometry->Get_InfoIndex().Get_BufferIndex());
-
-		RMLUI_ASSERT(p_dx_buffer_index && "must be valid!");
-
-		if (p_dx_buffer_index)
-		{
-			auto* p_dx_resource = p_dx_buffer_index->GetResource();
-
-			RMLUI_ASSERT(p_dx_resource && "must be valid!");
-
-			if (p_dx_resource)
-			{
-				D3D12_INDEX_BUFFER_VIEW view_index_buffer = {};
-
-				view_index_buffer.BufferLocation = p_dx_resource->GetGPUVirtualAddress() + p_handle_geometry->Get_InfoIndex().Get_Offset();
-				view_index_buffer.Format = DXGI_FORMAT::DXGI_FORMAT_R32_UINT;
-				view_index_buffer.SizeInBytes = p_handle_geometry->Get_InfoIndex().Get_Size();
-
-				this->m_p_command_graphics_list->IASetIndexBuffer(&view_index_buffer);
-			}
-		}
-
-		this->m_p_command_graphics_list->DrawIndexedInstanced(p_handle_geometry->Get_NumIndecies(), 1, 0, 0, 0);
 	}
+
+	auto* p_dx_buffer_vertex = this->m_manager_buffer.Get_BufferByIndex(p_handle_geometry->Get_InfoVertex().Get_BufferIndex());
+
+	RMLUI_ASSERT(p_dx_buffer_vertex && "must be valid!");
+
+	this->m_p_command_graphics_list->IASetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY::D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	if (p_dx_buffer_vertex)
+	{
+		auto* p_dx_resource = p_dx_buffer_vertex->GetResource();
+
+		RMLUI_ASSERT(p_dx_resource && "must be valid!");
+
+		if (p_dx_resource)
+		{
+			D3D12_VERTEX_BUFFER_VIEW view_vertex_buffer = {};
+
+			view_vertex_buffer.BufferLocation = p_dx_resource->GetGPUVirtualAddress() + p_handle_geometry->Get_InfoVertex().Get_Offset();
+			view_vertex_buffer.StrideInBytes = sizeof(Rml::Vertex);
+			view_vertex_buffer.SizeInBytes = static_cast<UINT>(p_handle_geometry->Get_InfoVertex().Get_Size());
+
+			this->m_p_command_graphics_list->IASetVertexBuffers(0, 1, &view_vertex_buffer);
+		}
+	}
+
+	auto* p_dx_buffer_index = this->m_manager_buffer.Get_BufferByIndex(p_handle_geometry->Get_InfoIndex().Get_BufferIndex());
+
+	RMLUI_ASSERT(p_dx_buffer_index && "must be valid!");
+
+	if (p_dx_buffer_index)
+	{
+		auto* p_dx_resource = p_dx_buffer_index->GetResource();
+
+		RMLUI_ASSERT(p_dx_resource && "must be valid!");
+
+		if (p_dx_resource)
+		{
+			D3D12_INDEX_BUFFER_VIEW view_index_buffer = {};
+
+			view_index_buffer.BufferLocation = p_dx_resource->GetGPUVirtualAddress() + p_handle_geometry->Get_InfoIndex().Get_Offset();
+			view_index_buffer.Format = DXGI_FORMAT::DXGI_FORMAT_R32_UINT;
+			view_index_buffer.SizeInBytes = p_handle_geometry->Get_InfoIndex().Get_Size();
+
+			this->m_p_command_graphics_list->IASetIndexBuffer(&view_index_buffer);
+		}
+	}
+
+	this->m_p_command_graphics_list->DrawIndexedInstanced(p_handle_geometry->Get_NumIndecies(), 1, 0, 0, 0);
 }
 
 Rml::CompiledGeometryHandle RenderInterface_DX12::CompileGeometry(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices)
@@ -899,15 +910,23 @@ void RenderInterface_DX12::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
 
 void RenderInterface_DX12::EnableScissorRegion(bool enable)
 {
+	OutputDebugStringA("::EnableScissorRegion\n");
 	if (!enable)
 	{
+		OutputDebugStringA("\t");
 		SetScissor(Rml::Rectanglei::MakeInvalid(), false);
 	}
 }
 
 void RenderInterface_DX12::SetScissorRegion(Rml::Rectanglei region)
 {
-	SetScissor(Rml::Rectanglei::FromPositionSize({region.Left(), region.Right()}, {region.Width(), region.Height()}));
+	static int call_count = 0;
+	++call_count;
+	char msg[32];
+	std::sprintf(msg, "::SetScissorRegion=%d\n\t", call_count);
+	OutputDebugStringA(msg);
+
+	SetScissor(region);
 }
 
 void RenderInterface_DX12::EnableClipMask(bool enable)
@@ -1128,8 +1147,8 @@ RenderInterface_DX12::RenderLayerStack::RenderLayerStack() :
 	// that validation supposed to be for memory leaks or wrong resource handling (like you forgot to delete resource somehow)
 	// if you didn't get it check this: https://en.cppreference.com/w/cpp/container/vector/reserve
 
-	// otherwise if your default implementation requires more layers by default, thus we have a field at compile-time (or at runtime as dynamic extension)
-	// RMLUI_RENDER_BACKEND_OVERRIDE_FIELD_RESERVECOUNT_OF_RENDERSTACK_LAYERS
+	// otherwise if your default implementation requires more layers by default, thus we have a field at compile-time (or at runtime as dynamic
+	// extension) RMLUI_RENDER_BACKEND_OVERRIDE_FIELD_RESERVECOUNT_OF_RENDERSTACK_LAYERS
 	this->m_fb_layers.reserve(RMLUI_RENDER_BACKEND_FIELD_RESERVECOUNT_OF_RENDERSTACK_LAYERS);
 	this->m_p_depth_stencil = new Gfx::FramebufferData();
 	this->m_p_depth_stencil->Set_RenderTarget(false);
@@ -1197,6 +1216,7 @@ Rml::LayerHandle RenderInterface_DX12::RenderLayerStack::PushLayer()
 		this->m_fb_layers.push_back(Gfx::FramebufferData{});
 		auto* p_buffer = &this->m_fb_layers.back();
 		this->CreateFramebuffer(p_buffer, m_width, m_height, RMLUI_RENDER_BACKEND_FIELD_MSAA_SAMPLE_COUNT, false);
+		p_buffer->Set_ID(this->m_fb_layers.size() - 1);
 
 	#ifdef RMLUI_DX_DEBUG
 		wchar_t framebuffer_name[32];
@@ -1332,7 +1352,7 @@ const Gfx::FramebufferData& RenderInterface_DX12::RenderLayerStack::EnsureFrameb
 	{
 		this->CreateFramebuffer(&fb, this->m_width, this->m_height, 1, false);
 
-		#ifdef RMLUI_DX_DEBUG
+	#ifdef RMLUI_DX_DEBUG
 		if (fb.Get_Texture())
 		{
 			wchar_t framebuffer_name[32];
@@ -1362,7 +1382,7 @@ const Gfx::FramebufferData& RenderInterface_DX12::RenderLayerStack::EnsureFrameb
 				}
 			}
 		}
-		#endif
+	#endif
 	}
 
 	return fb;
@@ -1424,6 +1444,9 @@ void RenderInterface_DX12::RenderLayerStack::CreateFramebuffer(Gfx::FramebufferD
 		}
 	#endif
 
+		// todo: move to debug build configuration because this information is not useful (?)
+		p_result->Set_Width(width);
+		p_result->Set_Height(height);
 		p_result->Set_Texture(p_resource);
 		D3D12_RESOURCE_FLAGS flags{};
 
@@ -1483,7 +1506,7 @@ Rml::LayerHandle RenderInterface_DX12::PushLayer()
 	this->m_p_command_graphics_list->OMSetRenderTargets(1, &framebuffer.Get_DescriptorResourceView(), FALSE,
 		&shared_depthstencil.Get_DescriptorResourceView());
 
-	FLOAT clear_color[] = {0.0f, 0.0f, 0.0f, 1.0f};
+	constexpr FLOAT clear_color[] = {RMLUUI_RENDER_BACKEND_FIELD_CLEAR_VALUE_RENDERTARGET_COLOR_VAlUE};
 	this->m_p_command_graphics_list->ClearRenderTargetView(framebuffer.Get_DescriptorResourceView(), clear_color, 0, nullptr);
 	this->m_p_command_graphics_list->ClearDepthStencilView(shared_depthstencil.Get_DescriptorResourceView(),
 		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
@@ -1493,10 +1516,47 @@ Rml::LayerHandle RenderInterface_DX12::PushLayer()
 
 void RenderInterface_DX12::BlitLayerToPostprocessPrimary(Rml::LayerHandle layer_id)
 {
-	const auto& source_framebuffer = this->m_manager_render_layer.GetLayer(layer_id);
-	const auto& destination_framebuffer = this->m_manager_render_layer.GetPostprocessPrimary();
+	const Gfx::FramebufferData& source_framebuffer = this->m_manager_render_layer.GetLayer(layer_id);
+	const Gfx::FramebufferData& destination_framebuffer = this->m_manager_render_layer.GetPostprocessPrimary();
 
-	RMLUI_ASSERT(!"todo: implement resolve msaa on dx12 side"[0]);
+	RMLUI_ASSERT(source_framebuffer.Get_Texture() && "texture must be presented when you call this method!");
+	RMLUI_ASSERT(destination_framebuffer.Get_Texture() && "texture must be presented when you call this method!");
+
+	RMLUI_ASSERT(source_framebuffer.Get_Texture()->Get_Info().Get_BufferIndex() == -1 &&
+		"expected that this texture was allocated as committed since it is 'framebuffer' ");
+	RMLUI_ASSERT(destination_framebuffer.Get_Texture()->Get_Info().Get_BufferIndex() == -1 &&
+		"expected that this texture was allocated as committed since it is 'framebuffer' ");
+
+	RMLUI_ASSERT(source_framebuffer.Get_Texture()->Get_Resource() && "texture must contain allocated and valid resource!");
+	RMLUI_ASSERT(destination_framebuffer.Get_Texture()->Get_Resource() && "texture must contain allocated and valid resource!");
+
+	ID3D12Resource* p_src = static_cast<D3D12MA::Allocation*>(source_framebuffer.Get_Texture()->Get_Resource())->GetResource();
+	ID3D12Resource* p_dst = static_cast<D3D12MA::Allocation*>(destination_framebuffer.Get_Texture()->Get_Resource())->GetResource();
+
+	RMLUI_ASSERT(p_src && "must be valid && allocated");
+	RMLUI_ASSERT(p_dst && "must be valid && allocated");
+
+	RMLUI_ASSERT(this->m_p_command_graphics_list && "must be initialized before calling this method");
+
+	if (!this->m_p_command_graphics_list)
+		return;
+
+	D3D12_RESOURCE_BARRIER barriers[2] = {CD3DX12_RESOURCE_BARRIER::Transition(p_src, D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET,
+											  D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
+		CD3DX12_RESOURCE_BARRIER::Transition(p_dst, D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RESOLVE_DEST)};
+
+	this->m_p_command_graphics_list->ResourceBarrier(2, barriers);
+
+	this->m_p_command_graphics_list->ResolveSubresource(p_dst, 0, p_src, 0, RMLUI_RENDER_BACKEND_FIELD_COLOR_TEXTURE_FORMAT);
+
+	barriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(p_dst, D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RESOLVE_DEST,
+		D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET);
+	barriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(p_src, D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
+		D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	// todo: should we convert src to render target ? probably yes, but need to be sure later after debugging
+	this->m_p_command_graphics_list->ResourceBarrier(2, barriers);
 }
 
 static Rml::Pair<int, float> SigmaToParameters(const float desired_sigma)
@@ -1586,11 +1646,14 @@ void RenderInterface_DX12::CompositeLayers(Rml::LayerHandle source, Rml::LayerHa
 	Rml::Span<const Rml::CompiledFilterHandle> filters)
 {
 	BlitLayerToPostprocessPrimary(source);
+
+	// RenderFilters(filters);
 }
 
 void RenderInterface_DX12::PopLayer()
 {
 	//	RMLUI_ASSERT(false && "todo");
+	this->m_manager_render_layer.PopLayer();
 }
 
 Rml::TextureHandle RenderInterface_DX12::SaveLayerAsTexture()
@@ -2483,8 +2546,8 @@ void RenderInterface_DX12::Create_Resource_DepthStencil()
 
 	D3D12_CLEAR_VALUE depth_optimized_clear_value = {};
 	depth_optimized_clear_value.Format = RMLUI_RENDER_BACKEND_FIELD_DEPTHSTENCIL_TEXTURE_FORMAT;
-	depth_optimized_clear_value.DepthStencil.Depth = 1.0f;
-	depth_optimized_clear_value.DepthStencil.Stencil = 0;
+	depth_optimized_clear_value.DepthStencil.Depth = RMLUI_RENDER_BACKEND_FIELD_CLEAR_VALUE_DEPTHSTENCIL_DEPTH_VALUE;
+	depth_optimized_clear_value.DepthStencil.Stencil = RMLUI_RENDER_BACKEND_FIELD_CLEAR_VALUE_DEPTHSTENCIL_STENCIL_VALUE;
 
 	ID3D12Resource* p_temp{};
 	auto status = this->m_p_allocator->CreateResource(&desc_alloc, &desc_texture, D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_DEPTH_WRITE,
@@ -3811,6 +3874,12 @@ void RenderInterface_DX12::PrintAdapterDesc(IDXGIAdapter* p_adapter)
 
 void RenderInterface_DX12::SetScissor(Rml::Rectanglei region, bool vertically_flip)
 {
+	static int call_count = 0;
+	++call_count;
+	char msg[32];
+	std::sprintf(msg, "::SetScissor=%d\n", call_count);
+	OutputDebugStringA(msg);
+
 	if (region.Valid() != m_scissor.Valid())
 	{
 		if (!region.Valid())
@@ -3830,11 +3899,19 @@ void RenderInterface_DX12::SetScissor(Rml::Rectanglei region, bool vertically_fl
 		if (this->m_p_command_graphics_list)
 		{
 			D3D12_RECT scissor;
-			scissor.left = region.Left();
-			scissor.right = region.Right();
-			scissor.bottom = region.Bottom();
-			scissor.top = region.Top();
+
+			const int x = Rml::Math::Clamp(region.Left(), 0, this->m_width);
+			const int y = Rml::Math::Clamp(this->m_height - region.Bottom(), 0, this->m_height);
+
+			scissor.left = x;
+			scissor.right = x + region.Width();
+			scissor.bottom = this->m_height - y;
+			scissor.top = this->m_height - (y + region.Height());
 			this->m_p_command_graphics_list->RSSetScissorRects(1, &scissor);
+			char msg[256];
+			std::sprintf(msg, "GraphicsQueue::RSSetScissorRects(%d,%d,%d,%d) | region.Valid() && region != this->m_scissor\n", scissor.left,
+				scissor.right, scissor.bottom, scissor.top);
+			OutputDebugStringA(msg);
 			this->m_is_scissor_was_set = true;
 		}
 	}
@@ -5200,9 +5277,30 @@ void RenderInterface_DX12::TextureMemoryManager::Alloc_As_Committed(size_t base_
 		D3D12MA::ALLOCATION_DESC desc_allocation = {};
 		desc_allocation.HeapType = D3D12_HEAP_TYPE_DEFAULT;
 
+		D3D12_CLEAR_VALUE optimized_clear_value = {};
+
+		if (p_impl->Is_RenderTarget())
+		{
+			optimized_clear_value.Format = RMLUI_RENDER_BACKEND_FIELD_COLOR_TEXTURE_FORMAT;
+
+			constexpr FLOAT color[] = {RMLUUI_RENDER_BACKEND_FIELD_CLEAR_VALUE_RENDERTARGET_COLOR_VAlUE};
+
+			optimized_clear_value.Color[0] = color[0];
+			optimized_clear_value.Color[1] = color[1];
+			optimized_clear_value.Color[2] = color[2];
+			optimized_clear_value.Color[3] = color[3];
+		}
+		else
+		{
+			optimized_clear_value.Format = RMLUI_RENDER_BACKEND_FIELD_DEPTHSTENCIL_TEXTURE_FORMAT;
+			optimized_clear_value.DepthStencil.Depth = RMLUI_RENDER_BACKEND_FIELD_CLEAR_VALUE_DEPTHSTENCIL_DEPTH_VALUE;
+			optimized_clear_value.DepthStencil.Stencil = RMLUI_RENDER_BACKEND_FIELD_CLEAR_VALUE_DEPTHSTENCIL_STENCIL_VALUE;
+		}
+
 		ID3D12Resource* p_resource{};
 		D3D12MA::Allocation* p_allocation{};
-		auto status = this->m_p_allocator->CreateResource(&desc_allocation, &desc, initial_state, nullptr, &p_allocation, IID_PPV_ARGS(&p_resource));
+		auto status = this->m_p_allocator->CreateResource(&desc_allocation, &desc, initial_state, &optimized_clear_value, &p_allocation,
+			IID_PPV_ARGS(&p_resource));
 
 		RMLUI_DX_ASSERTMSG(status, "failed to CreateResource (D3D12MA) (RenderTargetTexture)");
 
@@ -5472,7 +5570,7 @@ size_t RenderInterface_DX12::TextureMemoryManager::BitsPerPixel(DXGI_FORMAT form
 	case DXGI_FORMAT_R32G32_UINT:
 	case DXGI_FORMAT_R32G32_SINT:
 	case DXGI_FORMAT_R32G8X24_TYPELESS:
-	case RMLUI_RENDER_BACKEND_FIELD_DEPTHSTENCIL_TEXTURE_FORMAT:
+	case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
 	case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
 	case DXGI_FORMAT_X32_TYPELESS_G8X24_UINT:
 	case DXGI_FORMAT_Y416:
