@@ -298,9 +298,9 @@ int FontFaceHandleHarfBuzz::GenerateString(RenderManager& render_manager, Textur
 			if (layer == base_layer && glyph->color_format == ColorFormat::RGBA8)
 				glyph_color = ColourbPremultiplied(layer_colour.alpha, layer_colour.alpha);
 
-			Vector2f glyph_offset(glyph_positions[g].x_offset >> 6, glyph_positions[g].y_offset >> 6);
-			layer->GenerateGeometry(&mesh_list[geometry_index], glyph_index, character,
-				Vector2f(position.x + line_width, position.y) + glyph_offset, glyph_color);
+			Vector2f glyph_offset = {float(glyph_positions[g].x_offset >> 6), float(glyph_positions[g].y_offset >> 6)};
+			Vector2f glyph_geometry_position = Vector2f{position.x + line_width, position.y} + glyph_offset;
+			layer->GenerateGeometry(&mesh_list[geometry_index], glyph_index, character, glyph_geometry_position, glyph_color);
 
 			// Adjust the cursor for this character's advance.
 			if (glyph_index != 0)
