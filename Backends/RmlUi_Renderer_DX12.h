@@ -79,7 +79,7 @@ RMLUI_DISABLE_ALL_COMPILER_WARNINGS_POP
 	// clang-format off
 	// keep in mind that order of helpers define header guard for native windows sdk that's visible by default thus if you put first <directx/d3dx12.h> header lower than let's say D3D12MemAlloc.h header then you will get compilation errors it is clearly stated on official repository of Microsoft (see https://github.com/microsoft/DirectX-Headers?tab=readme-ov-file#use-on-windows) 
 	#include <directx/d3dx12.h>
-	#include "RmlUi_DirectX/D3D12MemAlloc.h"
+	#include <D3D12MemAlloc.h>
 	#include "RmlUi_DirectX/offsetAllocator.hpp"
 	#include <bitset>
 	#include <chrono>
